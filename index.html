@@ -12,12 +12,23 @@
   <style>body{font-family:'Inter',sans-serif}.fade-enter{opacity:0;transform:translateY(6px)}.fade-enter-active{opacity:1;transform:none;transition:all .35s cubic-bezier(.4,0,.2,1)}</style>
 </head>
 <body class="min-h-screen bg-gradient-to-br from-violet-600 via-indigo-600 to-sky-600 text-white flex flex-col items-center py-10 px-4 relative">
+  <!-- Toggle tema -->
   <button id="themeToggle" class="absolute top-4 right-4 p-2 rounded-full backdrop-blur-sm bg-white/20 hover:bg-white/30">🌓</button>
+
   <header class="text-center mb-8">
     <h1 class="text-4xl font-bold drop-shadow">Catatan Pribadi</h1>
     <p class="text-indigo-100 mt-2">Tulis rahasia atau inspirasi ✨</p>
   </header>
 
+  <!-- BOX LOGIN (Google) -->
+  <div id="loginBox" class="flex flex-col items-center gap-4 mb-8">
+    <button id="googleBtn" class="flex items-center gap-2 px-5 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow hover:shadow-lg active:scale-95 transition">
+      <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 488 512" fill="currentColor"><path d="M488 261.8C488 403.3 391.6 512 248 512 110.8 512 0 401.2 0 264S110.8 16 248 16c66.5 0 122.1 24.4 164.6 64.6l-66.7 64.1C318.9 105.4 286.1 92 248 92c-87.6 0-158.5 72.5-158.5 160.9 0 88.3 70.9 160.8 158.5 160.8 98.3 0 134.9-70.5 140.9-107.3H248v-85.4h240c2.2 12.8 4 25.9 4 40.8z"/></svg>
+      Masuk dengan Google
+    </button>
+  </div>
+
+  <!-- Form catatan -->
   <form id="noteForm" class="w-full max-w-2xl mb-10 backdrop-blur-sm bg-white/10 p-6 rounded-2xl shadow-xl ring-1 ring-white/20 hidden">
     <input id="contactInput" type="text" placeholder="Email / No. Telepon (opsional)" class="w-full mb-3 p-3 bg-transparent border border-white/30 rounded-lg placeholder:text-white/60 focus:ring-2 focus:ring-white/60">
     <textarea id="noteInput" rows="4" placeholder="Tulis catatanmu di sini…" class="w-full p-3 bg-transparent border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/60 placeholder:italic placeholder:text-white/70 resize-none" required></textarea>
@@ -50,6 +61,7 @@ themeToggle.onclick=()=>{document.documentElement.classList.toggle('dark');local
 firebase.initializeApp({apiKey:"AIzaSyALhq63aB4_WegW0EeEmeKqf3TLbhaAu4A",authDomain:"akaxproject.firebaseapp.com",projectId:"akaxproject",storageBucket:"akaxproject.appspot.com",messagingSenderId:"780230212659",appId:"1:780230212659:web:97923cc2559b479f8af746"});
 const auth=firebase.auth();
 const db=firebase.firestore();
+const provider=new firebase.auth.GoogleAuthProvider();
 const ADMIN_UID="2Y6k3Vf8uYPKm5inAJvShrkczKy1";
 
 // === ELEMENTS ===
@@ -59,19 +71,54 @@ const noteInput=document.getElementById('noteInput');
 const notesList=document.getElementById('notesList');
 const tpl=document.getElementById('noteCardTpl');
 const logoutBtn=document.getElementById('logoutBtn');
+const googleBtn=document.getElementById('googleBtn');
+const loginBox=document.getElementById('loginBox');
 let currentUID=null;
 
 const timeAgo=ms=>{const d=Math.floor((Date.now()-ms)/864e5),h=Math.floor((Date.now()-ms)/36e5),m=Math.floor((Date.now()-ms)/6e4);return d?d+" hari lalu":h?h+" jam lalu":m?m+" menit lalu":"Baru saja"};
 
+// LOGIN via Google
+googleBtn.onclick=()=>auth.signInWithPopup(provider).catch(err=>alert(err.message));
+
 // === AUTH ===
-auth.onAuthStateChanged(async user=>{if(!user){await auth.signInAnonymously();return;}currentUID=user.uid;noteForm.classList.remove('hidden');listenNotes(user.uid===ADMIN_UID);});
+auth.onAuthStateChanged(user=>{
+  if(!user){loginBox.classList.remove('hidden');noteForm.classList.add('hidden');return;}
+  loginBox.classList.add('hidden');noteForm.classList.remove('hidden');
+  currentUID=user.uid;
+  listenNotes(user.uid===ADMIN_UID);
+});
+
 logoutBtn.onclick=()=>auth.signOut();
 
-function listenNotes(isAdmin){const base=db.collection('notes');const q=isAdmin?base.orderBy('ts','desc'):base.where('uid','==',currentUID).orderBy('ts','desc');q.onSnapshot(s=>{notesList.innerHTML='';if(s.empty){notesList.innerHTML='<p class="text-center text-white/80">Belum ada catatan.</p>';return;}s.forEach(d=>renderCard(d,isAdmin));});}
+function listenNotes(isAdmin){
+  const base=db.collection('notes');
+  const q=isAdmin?base.orderBy('ts','desc'):base.where('uid','==',currentUID).orderBy('ts','desc');
+  q.onSnapshot(s=>{notesList.innerHTML='';if(s.empty){notesList.innerHTML='<p class="text-center text-white/80">Belum ada catatan.</p>';return;}s.forEach(d=>renderCard(d,isAdmin));});
+}
 
-function renderCard(doc,isAdmin){const data=doc.data();const node=tpl.content.cloneNode(true);const p=node.querySelector('p');const t=node.querySelector('time');const a=node.querySelector('[data-author]');const del=node.querySelector('button');p.textContent=data.text;t.textContent=data.ts?timeAgo(data.ts.toDate()):'…';if(isAdmin){a.textContent=data.contact||data.email||data.uid.substring(0,6)+'…';}del.onclick=()=>{if(confirm('Hapus catatan?'))doc.ref.delete();};requestAnimationFrame(()=>node.firstElementChild.classList.remove('fade-enter'));notesList.appendChild(node);}
+function renderCard(doc,isAdmin){
+  const data=doc.data();
+  const node=tpl.content.cloneNode(true);
+  const p=node.querySelector('p');
+  const t=node.querySelector('time');
+  const a=node.querySelector('[data-author]');
+  const del=node.querySelector('button');
+  p.textContent=data.text;
+  t.textContent=data.ts?timeAgo(data.ts.toDate()):'…';
+  if(isAdmin){a.textContent=data.email||data.contact||data.uid.substring(0,6)+'…';}
+  del.onclick=()=>{if(confirm('Hapus catatan?'))doc.ref.delete();};
+  requestAnimationFrame(()=>node.firstElementChild.classList.remove('fade-enter'));
+  notesList.appendChild(node);
+}
 
-noteForm.onsubmit=async e=>{e.preventDefault();const text=noteInput.value.trim();if(!text)return;const contact=contactInput.value.trim()||null;const email=auth.currentUser.email||null;await db.collection('notes').add({uid:currentUID,contact,email,text,ts:firebase.firestore.FieldValue.serverTimestamp()});noteInput.value='';contactInput.value='';};
+noteForm.onsubmit=async e=>{
+  e.preventDefault();
+  const text=noteInput.value.trim();if(!text)return;
+  const contact=contactInput.value.trim()||null;
+  const email=auth.currentUser.email||null;
+  await db.collection('notes').add({uid:currentUID,email,contact,text,ts:firebase.firestore.FieldValue.serverTimestamp()});
+  noteInput.value='';contactInput.value='';
+};
 </script>
 </body>
 </html>
