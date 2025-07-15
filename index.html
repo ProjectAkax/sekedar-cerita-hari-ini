@@ -1,3 +1,5 @@
+/** Updated Script - Enforce Google Login Before Accessing Notes **/
+
 <!DOCTYPE html>
 <html lang="id" class="scroll-smooth">
 <head>
@@ -30,7 +32,6 @@
 
   <!-- Form catatan -->
   <form id="noteForm" class="w-full max-w-2xl mb-10 backdrop-blur-sm bg-white/10 p-6 rounded-2xl shadow-xl ring-1 ring-white/20 hidden">
-    <input id="contactInput" type="text" placeholder="Email / No. Telepon (opsional)" class="w-full mb-3 p-3 bg-transparent border border-white/30 rounded-lg placeholder:text-white/60 focus:ring-2 focus:ring-white/60">
     <textarea id="noteInput" rows="4" placeholder="Tulis catatanmu di sini…" class="w-full p-3 bg-transparent border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/60 placeholder:italic placeholder:text-white/70 resize-none" required></textarea>
     <div class="flex justify-end mt-4 gap-2">
       <button type="submit" class="px-6 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-lg hover:shadow-xl active:scale-95 transition">Simpan</button>
@@ -66,7 +67,6 @@ const ADMIN_UID="2Y6k3Vf8uYPKm5inAJvShrkczKy1";
 
 // === ELEMENTS ===
 const noteForm=document.getElementById('noteForm');
-const contactInput=document.getElementById('contactInput');
 const noteInput=document.getElementById('noteInput');
 const notesList=document.getElementById('notesList');
 const tpl=document.getElementById('noteCardTpl');
@@ -82,7 +82,7 @@ googleBtn.onclick=()=>auth.signInWithPopup(provider).catch(err=>alert(err.messag
 
 // === AUTH ===
 auth.onAuthStateChanged(user=>{
-  if(!user){loginBox.classList.remove('hidden');noteForm.classList.add('hidden');return;}
+  if(!user || !user.email){loginBox.classList.remove('hidden');noteForm.classList.add('hidden');return;}
   loginBox.classList.add('hidden');noteForm.classList.remove('hidden');
   currentUID=user.uid;
   listenNotes(user.uid===ADMIN_UID);
@@ -105,7 +105,7 @@ function renderCard(doc,isAdmin){
   const del=node.querySelector('button');
   p.textContent=data.text;
   t.textContent=data.ts?timeAgo(data.ts.toDate()):'…';
-  if(isAdmin){a.textContent=data.email||data.contact||data.uid.substring(0,6)+'…';}
+  if(isAdmin){a.textContent=data.email||data.uid.substring(0,6)+'…';}
   del.onclick=()=>{if(confirm('Hapus catatan?'))doc.ref.delete();};
   requestAnimationFrame(()=>node.firstElementChild.classList.remove('fade-enter'));
   notesList.appendChild(node);
@@ -114,10 +114,9 @@ function renderCard(doc,isAdmin){
 noteForm.onsubmit=async e=>{
   e.preventDefault();
   const text=noteInput.value.trim();if(!text)return;
-  const contact=contactInput.value.trim()||null;
   const email=auth.currentUser.email||null;
-  await db.collection('notes').add({uid:currentUID,email,contact,text,ts:firebase.firestore.FieldValue.serverTimestamp()});
-  noteInput.value='';contactInput.value='';
+  await db.collection('notes').add({uid:currentUID,email,text,ts:firebase.firestore.FieldValue.serverTimestamp()});
+  noteInput.value='';
 };
 </script>
 </body>
