@@ -1,4 +1,4 @@
-/** Updated Script - Enforce Google Login Before Accessing Notes **/
+/** Updated Script - Enforce Google Login Before Accessing Notes + Display Own Notes Only **/
 
 <!DOCTYPE html>
 <html lang="id" class="scroll-smooth">
@@ -85,7 +85,7 @@ auth.onAuthStateChanged(user=>{
   if(!user || !user.email){loginBox.classList.remove('hidden');noteForm.classList.add('hidden');return;}
   loginBox.classList.add('hidden');noteForm.classList.remove('hidden');
   currentUID=user.uid;
-  listenNotes(user.uid===ADMIN_UID);
+  listenNotes(false); // hanya lihat catatan sendiri
 });
 
 logoutBtn.onclick=()=>auth.signOut();
@@ -105,7 +105,7 @@ function renderCard(doc,isAdmin){
   const del=node.querySelector('button');
   p.textContent=data.text;
   t.textContent=data.ts?timeAgo(data.ts.toDate()):'…';
-  if(isAdmin){a.textContent=data.email||data.uid.substring(0,6)+'…';}
+  if(isAdmin){a.textContent=data.email||data.uid.substring(0,6)+'…';} else {a.remove();}
   del.onclick=()=>{if(confirm('Hapus catatan?'))doc.ref.delete();};
   requestAnimationFrame(()=>node.firstElementChild.classList.remove('fade-enter'));
   notesList.appendChild(node);
