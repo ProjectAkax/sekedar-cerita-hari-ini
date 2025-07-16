@@ -1,68 +1,110 @@
+<!-- FULL FIXED VERSION -->
 <!DOCTYPE html>
-<html lang="id" class="scroll-smooth">
+<html lang="id">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Catatan Pribadi ✦</title>
   <script src="https://cdn.tailwindcss.com"></script>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
-  <style>
-    body{font-family:'Inter',sans-serif}
-    .fade-enter{opacity:0;transform:translateY(6px)}
-    .fade-enter-active{opacity:1;transform:none;transition:all .35s cubic-bezier(.4,0,.2,1)}
-  </style>
+  <style>body{font-family:'Inter',sans-serif}</style>
 </head>
-<body class="min-h-screen bg-gradient-to-br from-violet-600 via-indigo-600 to-sky-600 text-white flex flex-col items-center py-10 px-4 relative">
-  <!-- Tema -->
+<body class="min-h-screen bg-gradient-to-br from-violet-600 via-indigo-600 to-sky-600 text-white flex flex-col items-center py-10 px-4" id="app">
   <button id="themeToggle" class="absolute top-4 right-4 p-2 rounded-full backdrop-blur-sm bg-white/20 hover:bg-white/30">🌓</button>
 
-  <header class="text-center mb-8">
-    <h1 class="text-4xl font-bold drop-shadow">Catatan Pribadi</h1>
-    <p class="text-indigo-100 mt-2">Tulis rahasia, inspirasi, & simpan aman ✨</p>
-  </header>
+  <h1 class="text-4xl font-bold mb-2 drop-shadow text-center">Catatan Pribadi</h1>
+  <p class="mb-6 text-indigo-100 text-center">Tulis rahasia & inspirasi ✨</p>
 
-  <!-- BOX LOGIN -->
-  <div id="loginBox" class="flex flex-col items-center gap-4 mb-8">
-    <button id="googleBtn" class="flex items-center gap-2 px-5 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow hover:shadow-lg active:scale-95 transition">Masuk dengan Google</button>
-  </div>
+  <!-- LOGIN -->
+  <button id="googleBtn" class="px-5 py-2 mb-6 rounded-lg bg-white text-indigo-700 font-semibold shadow hover:shadow-lg active:scale-95">Masuk dengan Google</button>
 
-  <!-- TOOLS BAR -->
-  <div id="toolsBar" class="w-full max-w-2xl mb-4 hidden">
-    <div class="flex items-center gap-3">
-      <input id="searchInput" type="text" placeholder="Cari catatan…" class="flex-1 p-2 rounded-lg bg-white/20 placeholder:text-white/70 focus:ring focus:outline-none">
-      <select id="sortSelect" class="p-2 rounded-lg bg-white/20 focus:ring outline-none">
+  <!-- TOOLBAR -->
+  <div id="tools" class="mb-4 w-full max-w-2xl hidden">
+    <div class="flex gap-2">
+      <input id="searchInput" placeholder="Cari…" class="flex-1 p-2 rounded bg-white/20 placeholder:text-white/70">
+      <select id="sortSelect" class="p-2 rounded bg-white/20">
         <option value="desc">Terbaru</option>
         <option value="asc">Terlama</option>
       </select>
-      <button id="exportBtn" class="px-3 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow hover:shadow-lg">Ekspor .txt</button>
+      <button id="exportBtn" class="px-3 py-2 rounded bg-white text-indigo-700 font-semibold">Ekspor</button>
     </div>
   </div>
 
-  <!-- Form catatan -->
-  <form id="noteForm.onsubmit=async e=>{
-  e.preventDefault();
-  const text=noteInput.value.trim();
-  if(!text) return;
-  await db.collection('notes').add({
-    uid: currentUID,
-    email: auth.currentUser.email,
-    text,
-    ts: firebase.firestore.Timestamp.fromDate(new Date()) // lokal dulu supaya langsung muncul
-  });
-  noteInput.value='';
-};
+  <!-- FORM -->
+  <form id="noteForm" class="w-full max-w-2xl mb-6 hidden">
+    <textarea id="noteInput" rows="3" class="w-full p-3 bg-white/10 rounded"></textarea>
+    <div class="flex justify-end mt-2 gap-2">
+      <button id="logoutBtn" type="button" class="px-4 py-2 bg-red-600 rounded">Keluar</button>
+      <button type="submit" class="px-6 py-2 bg-white text-indigo-700 rounded font-semibold">Simpan</button>
+    </div>
+  </form>
 
-// Export txt
-exportBtn.onclick=()=>{
-  if(!cachedNotes.length) return alert('Tidak ada catatan.');
-  const lines=cachedNotes.map(n=>- ${n.text.replace(/\n/g,' ')} ( ${n.ts?timeAgo(n.ts.toDate()):''} ));
-  const blob=new Blob([lines.join('\n')],{type:'text/plain'});
-  const url=URL.createObjectURL(blob);
-  const a=document.createElement('a');a.href=url;a.download='catatan.txt';a.click();URL.revokeObjectURL(url);
-};
+  <!-- LIST -->
+  <div id="notesList" class="w-full max-w-2xl space-y-4"></div>
+
+<template id="tpl">
+  <article class="bg-white/20 p-4 rounded relative">
+    <textarea class="content w-full bg-transparent resize-none text-lg outline-none" readonly></textarea>
+    <div class="flex justify-between text-sm mt-2">
+      <time class="text-white/70"></time>
+      <div class="flex gap-2">
+        <button class="edit text-green-300">Edit</button>
+        <button class="save hidden text-green-300">Simpan</button>
+        <button class="cancel hidden text-yellow-300">Batal</button>
+        <button class="del text-red-400">Hapus</button>
+      </div>
+    </div>
+  </article>
+</template>
+
+<script>
+// === Dark mode
+const themeBtn=document.getElementById('themeToggle');
+if(localStorage.theme==='dark')document.documentElement.classList.add('dark');
+themeBtn.onclick=()=>{document.documentElement.classList.toggle('dark');localStorage.theme=document.documentElement.classList.contains('dark')?'dark':'light'};
+
+// === Firebase init
+firebase.initializeApp({apiKey:"AIzaSyALhq63aB4_WegW0EeEmeKqf3TLbhaAu4A",authDomain:"akaxproject.firebaseapp.com",projectId:"akaxproject"});
+const auth=firebase.auth();const db=firebase.firestore();
+
+// === Elements
+const googleBtn=document.getElementById('googleBtn');
+const noteForm=document.getElementById('noteForm');
+const noteInput=document.getElementById('noteInput');
+const notesList=document.getElementById('notesList');
+const tpl=document.getElementById('tpl');
+const tools=document.getElementById('tools');
+const searchInput=document.getElementById('searchInput');
+const sortSelect=document.getElementById('sortSelect');
+const exportBtn=document.getElementById('exportBtn');
+const logoutBtn=document.getElementById('logoutBtn');
+let currentUID=null;let cache=[];
+
+// === Helpers
+const ago=ms=>{const d=Math.floor((Date.now()-ms)/864e5),h=Math.floor((Date.now()-ms)/36e5),m=Math.floor((Date.now()-ms)/6e4);return d?d+" hari":h?h+" jam":m?m+" menit":"baru"};
+const qSnap=(uid)=>db.collection('notes').where('uid','==',uid).orderBy('ts','desc');
+
+// === Auth
+googleBtn.onclick=()=>auth.signInWithPopup(new firebase.auth.GoogleAuthProvider());
+logoutBtn.onclick=()=>auth.signOut();
+
+auth.onAuthStateChanged(u=>{if(!u){toggle(false);return;}currentUID=u.uid;toggle(true);listen();});
+function toggle(on){[tools,noteForm].forEach(el=>el.classList.toggle('hidden',!on));googleBtn.classList.toggle('hidden',on);} 
+
+// === Listener
+function listen(){qSnap(currentUID).onSnapshot(s=>{cache=s.docs.map(d=>({...d.data(),id:d.id}));render();});}
+function render(){let list=[...cache];const q=searchInput.value.toLowerCase();if(q)list=list.filter(n=>n.text.toLowerCase().includes(q));if(sortSelect.value==='asc')list.reverse();notesList.innerHTML='';if(!list.length){notesList.textContent='Tidak ada catatan.';return;}list.forEach(n=>addCard(n));}
+searchInput.oninput=render;sortSelect.onchange=render;
+function addCard(n){const node=tpl.content.cloneNode(true);const art=node.querySelector('article');const txt=node.querySelector('.content');const t=node.querySelector('time');const [edit,save,cancel,del]=art.querySelectorAll('button');txt.value=n.text;t.textContent=n.ts?ago(n.ts.toDate()):'...';edit.onclick=()=>{txt.readOnly=false;txt.focus();edit.hidden=true;save.hidden=cancel.hidden=false;};cancel.onclick=()=>{txt.value=n.text;txt.readOnly=true;edit.hidden=false;save.hidden=cancel.hidden=true;};save.onclick=async()=>{await db.collection('notes').doc(n.id).update({text:txt.value.trim()});txt.readOnly=true;edit.hidden=false;save.hidden=cancel.hidden=true;};del.onclick=()=>confirm('Hapus?')&&db.collection('notes').doc(n.id).delete();notesList.appendChild(node);}
+
+// === Add note
+noteForm.onsubmit=async e=>{e.preventDefault();const text=noteInput.value.trim();if(!text)return;await db.collection('notes').add({uid:currentUID,email:auth.currentUser.email,text,ts:firebase.firestore.Timestamp.fromDate(new Date())});noteInput.value='';};
+
+// === Export
+exportBtn.onclick=()=>{if(!cache.length)return alert('Tidak ada data');const txt=cache.map(n=>- ${n.text.replace(/\n/g,' ')} (${ago(n.ts.toDate())})).join('\n');const blob=new Blob([txt]);const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='catatan.txt';a.click();};
 </script>
 </body>
 </html>
