@@ -42,147 +42,24 @@
   </div>
 
   <!-- Form catatan -->
-  <form id="noteForm" class="w-full max-w-2xl mb-8 backdrop-blur-sm bg-white/10 p-6 rounded-2xl shadow-xl ring-1 ring-white/20 hidden">
-    <textarea id="noteInput" rows="4" placeholder="Tulis catatanmu di sini…" class="w-full p-3 bg-transparent border border-white/30 rounded-lg focus:outline-none focus:ring-2 focus:ring-white/60 placeholder:italic placeholder:text-white/70 resize-none" required></textarea>
-    <div class="flex justify-end mt-4 gap-2">
-      <button type="submit" class="px-6 py-2 rounded-lg bg-white text-indigo-700 font-semibold shadow-lg hover:shadow-xl active:scale-95 transition">Simpan</button>
-      <button id="logoutBtn" type="button" class="px-4 py-2 rounded-lg bg-red-600 text-white shadow hover:bg-red-700">Keluar</button>
-    </div>
-  </form>
-
-  <section id="notesList" class="w-full max-w-2xl space-y-6"></section>
-
-  <template id="noteCardTpl">
-    <article class="fade-enter bg-white/20 backdrop-blur-md p-5 rounded-2xl shadow-lg relative">
-      <textarea class="note-text bg-transparent w-full resize-none whitespace-pre-wrap text-lg outline-none" readonly></textarea>
-      <div class="flex items-center justify-between mt-3 text-sm text-white/70">
-        <time></time>
-        <div class="flex gap-2">
-          <button class="editBtn hover:text-green-400">Edit</button>
-          <button class="saveBtn hidden hover:text-green-400">Simpan</button>
-          <button class="cancelBtn hidden hover:text-yellow-400">Batal</button>
-          <button class="deleteBtn hover:text-red-400">Hapus</button>
-        </div>
-      </div>
-    </article>
-  </template>
-
-<script>
-// === THEME ===
-const themeToggle=document.getElementById('themeToggle');
-if(localStorage.getItem('notes_theme')==='dark')document.documentElement.classList.add('dark');
-themeToggle.onclick=()=>{document.documentElement.classList.toggle('dark');localStorage.setItem('notes_theme',document.documentElement.classList.contains('dark')?'dark':'light');};
-
-// === FIREBASE ===
-firebase.initializeApp({apiKey:"AIzaSyALhq63aB4_WegW0EeEmeKqf3TLbhaAu4A",authDomain:"akaxproject.firebaseapp.com",projectId:"akaxproject",storageBucket:"akaxproject.appspot.com",messagingSenderId:"780230212659",appId:"1:780230212659:web:97923cc2559b479f8af746"});
-const auth=firebase.auth();
-const db=firebase.firestore();
-const provider=new firebase.auth.GoogleAuthProvider();
-
-// === ELEMENTS ===
-const loginBox=document.getElementById('loginBox');
-const googleBtn=document.getElementById('googleBtn');
-const toolsBar=document.getElementById('toolsBar');
-const noteForm=document.getElementById('noteForm');
-const noteInput=document.getElementById('noteInput');
-const notesList=document.getElementById('notesList');
-const tpl=document.getElementById('noteCardTpl');
-const logoutBtn=document.getElementById('logoutBtn');
-const searchInput=document.getElementById('searchInput');
-const sortSelect=document.getElementById('sortSelect');
-const exportBtn=document.getElementById('exportBtn');
-let currentUID=null;
-let cachedNotes=[]; // cache untuk pencarian & ekspor
-
-// UTIL time-ago
-const timeAgo=ms=>{const d=Math.floor((Date.now()-ms)/864e5),h=Math.floor((Date.now()-ms)/36e5),m=Math.floor((Date.now()-ms)/6e4);return d?d+" hari lalu":h?h+" jam lalu":m?m+" menit lalu":"Baru saja"};
-
-// LOGIN
-googleBtn.onclick=()=>auth.signInWithPopup(provider).catch(e=>alert(e.message));
-logoutBtn.onclick=()=>auth.signOut();
-
-auth.onAuthStateChanged(user=>{
-  if(!user){loginBox.classList.remove('hidden');noteForm.classList.add('hidden');toolsBar.classList.add('hidden');return;}
-  loginBox.classList.add('hidden');noteForm.classList.remove('hidden');toolsBar.classList.remove('hidden');
-  currentUID=user.uid;
-  listenNotes();
-});
-
-// LISTEN & RENDER
-function listenNotes(){
-  db.collection('notes').where('uid','==',currentUID).orderBy('ts','desc')
-    .onSnapshot(snap=>{
-      cachedNotes=snap.docs.map(d=>({...d.data(),id:d.id}));
-      applyFilter();
-    });
-}
-
-function applyFilter(){
-  const q=searchInput.value.toLowerCase();
-  const order=sortSelect.value;
-  let list=[...cachedNotes];
-  if(q) list=list.filter(n=>n.text.toLowerCase().includes(q));
-  if(order==='asc') list=list.reverse();
-  renderList(list);
-}
-
-searchInput.oninput=applyFilter;
-sortSelect.onchange=applyFilter;
-
-function renderList(arr){
-  notesList.innerHTML='';
-  if(arr.length===0){notesList.innerHTML='<p class="text-center text-white/80">Tidak ada catatan.</p>';return;}
-  arr.forEach(n=>renderCard(n));
-}
-
-function renderCard(note){
-  const node=tpl.content.cloneNode(true);
-  const art=node.querySelector('article');
-  const txt=node.querySelector('.note-text');
-  const time=node.querySelector('time');
-  const edit=node.querySelector('.editBtn');
-  const save=node.querySelector('.saveBtn');
-  const cancel=node.querySelector('.cancelBtn');
-  const del=node.querySelector('.deleteBtn');
-
-  txt.value=note.text;
-  time.textContent=note.ts?timeAgo(note.ts.toDate()):'…';
-
-  // Edit behaviour
-  edit.onclick=()=>{
-    txt.removeAttribute('readonly');txt.focus();
-    edit.classList.add('hidden');save.classList.remove('hidden');cancel.classList.remove('hidden');
-  };
-  cancel.onclick=()=>{
-    txt.value=note.text;txt.setAttribute('readonly','');
-    edit.classList.remove('hidden');save.classList.add('hidden');cancel.classList.add('hidden');
-  };
-  save.onclick=async()=>{
-    const newText=txt.value.trim();
-    if(!newText){alert('Teks kosong!');return;}
-    await db.collection('notes').doc(note.id).update({text:newText});
-    edit.classList.remove('hidden');save.classList.add('hidden');cancel.classList.add('hidden');
-  };
-  // Delete
-  del.onclick=()=>{if(confirm('Hapus catatan?'))db.collection('notes').doc(note.id).delete();};
-
-  requestAnimationFrame(()=>art.classList.remove('fade-enter'));
-  notesList.appendChild(node);
-}
-
-// ADD NOTE
-noteForm.onsubmit=async e=>{
+  <form id="noteForm.onsubmit=async e=>{
   e.preventDefault();
-  const text=noteInput.value.trim();if(!text)return;
-  await db.collection('notes').add({uid:currentUID,email:auth.currentUser.email,text,ts:firebase.firestore.FieldValue.serverTimestamp()});
+  const text=noteInput.value.trim();
+  if(!text) return;
+  await db.collection('notes').add({
+    uid: currentUID,
+    email: auth.currentUser.email,
+    text,
+    ts: firebase.firestore.Timestamp.fromDate(new Date()) // lokal dulu supaya langsung muncul
+  });
   noteInput.value='';
 };
 
-// EXPORT TXT
+// Export txt
 exportBtn.onclick=()=>{
-  if(cachedNotes.length===0){alert('Tidak ada catatan untuk diekspor');return;}
-  const lines=cachedNotes.map(n=>- ${n.text.replace(/\n/g,' ')} \t(${n.ts?timeAgo(n.ts.toDate()):'...'} ));
-  const blob=new Blob([lines.join("\n")],{type:'text/plain'});
+  if(!cachedNotes.length) return alert('Tidak ada catatan.');
+  const lines=cachedNotes.map(n=>- ${n.text.replace(/\n/g,' ')} ( ${n.ts?timeAgo(n.ts.toDate()):''} ));
+  const blob=new Blob([lines.join('\n')],{type:'text/plain'});
   const url=URL.createObjectURL(blob);
   const a=document.createElement('a');a.href=url;a.download='catatan.txt';a.click();URL.revokeObjectURL(url);
 };
